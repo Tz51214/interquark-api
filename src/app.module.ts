@@ -41,6 +41,12 @@ import { APP_GUARD } from '@nestjs/core';
       database: process.env.DB_DATABASE,
       autoLoadEntities: true,
       synchronize: false,
+      // Neon (and most managed Postgres providers) require SSL. Passing
+      // it via `extra` (not the top-level `ssl` option) is the reliable
+      // way to get this through to the underlying pg driver with TypeORM.
+      extra: process.env.NODE_ENV === 'production'
+        ? { ssl: { rejectUnauthorized: false } }
+        : {},
     }),
 
     UsersModule,
