@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Invoice, InvoiceStatus } from './entities/invoice.entity';
@@ -14,6 +15,53 @@ export class InvoicesService {
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
     @InjectRepository(Order) private readonly ordersRepo: Repository<Order>,
   ) {}
+
+  // Builds a PDF buffer for a single invoice. Throws if the invoice
+  // doesn't exist, or if the requesting user isn't the invoice's own
+  // customer and isn't an admin — same ownership rule as findMine.
+  async generatePdf(id: string, requesterId: string, requesterRole: string) {
+    const invoice = await this.repo.findOne({
+      where: { id },
+      relations: ['customer', 'order'],
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found.');
+
+    if (requesterRole !== 'admin' && invoice.customer.id !== Number(requesterId)) {
+      throw new ForbiddenException('You do not have access to this invoice.');
+    }
+
+    return new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fontSize(20).text('Interquark', { align: 'left' });
+      doc.fontSize(10).fillColor('#666').text('Invoice', { align: 'left' });
+      doc.moveDown(2);
+
+      doc.fillColor('#000').fontSize(12);
+      doc.text(`Invoice number: ${invoice.invoiceNumber}`);
+      doc.text(`Date: ${invoice.createdAt.toLocaleDateString('en-GB')}`);
+      doc.text(`Status: ${invoice.status.toUpperCase()}`);
+      doc.moveDown();
+
+      doc.text(`Billed to: ${invoice.customer.fullName}`);
+      doc.text(`Email: ${invoice.customer.email}`);
+      doc.moveDown(2);
+
+      doc.fontSize(14).text('Amount due', { underline: true });
+      doc.fontSize(20).text(`£${Number(invoice.amount).toFixed(2)}`);
+      doc.moveDown(2);
+
+      if (invoice.notes) {
+        doc.fontSize(10).fillColor('#666').text(invoice.notes);
+      }
+
+      doc.end();
+    });
+  }
 
   private async nextInvoiceNumber() {
     const count = await this.repo.count();

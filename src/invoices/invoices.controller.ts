@@ -7,9 +7,10 @@ import {
   Patch,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
@@ -38,6 +39,20 @@ export class InvoicesController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.invoicesService.findOne(id);
+  }
+
+  @Get(':id/pdf')
+  async downloadPdf(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { userId: string; role: string } },
+    @Res() res: Response,
+  ) {
+    const pdf = await this.invoicesService.generatePdf(id, req.user.userId, req.user.role);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="invoice-${id}.pdf"`,
+    });
+    res.send(pdf);
   }
 
   @Patch(':id')
