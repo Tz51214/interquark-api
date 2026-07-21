@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PaymentRecord, PaymentStatus, TransactionType } from './entities/payment-record.entity';
@@ -95,6 +96,57 @@ export class LedgerService {
     return this.repo.find({
       where: { subscription: { id: subscriptionId } },
       order: { createdAt: 'DESC' },
+    });
+  }
+
+  // PDF receipt for a single payment record — used by freelancers to
+  // download proof of a subscription charge. Same ownership rule as
+  // the invoice PDF: only the payment's own user, or an admin.
+  async generateReceiptPdf(id: string, requesterId: string, requesterRole: string) {
+    const record = await this.repo.findOne({
+      where: { id },
+      relations: ['user', 'subscription'],
+    });
+    if (!record) throw new NotFoundException('Payment record not found.');
+
+    if (requesterRole !== 'admin' && record.user.id !== Number(requesterId)) {
+      throw new ForbiddenException('You do not have access to this receipt.');
+    }
+
+    return new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fontSize(20).text('Interquark', { align: 'left' });
+      doc.fontSize(10).fillColor('#666').text('Payment receipt', { align: 'left' });
+      doc.moveDown(2);
+
+      doc.fillColor('#000').fontSize(12);
+      doc.text(`Receipt ID: ${record.id}`);
+      doc.text(`Date: ${record.createdAt.toLocaleDateString('en-GB')}`);
+      doc.text(`Status: ${record.status.toUpperCase()}`);
+      doc.text(`Method: ${record.method.toUpperCase()}`);
+      doc.moveDown();
+
+      doc.text(`Billed to: ${record.user.fullName}`);
+      doc.text(`Email: ${record.user.email}`);
+      if (record.subscription) {
+        doc.text(`Plan: ${record.subscription.tier}`);
+      }
+      doc.moveDown(2);
+
+      doc.fontSize(14).text('Amount', { underline: true });
+      doc.fontSize(20).text(`£${Number(record.amount).toFixed(2)}`);
+      doc.moveDown(2);
+
+      if (record.notes) {
+        doc.fontSize(10).fillColor('#666').text(record.notes);
+      }
+
+      doc.end();
     });
   }
 

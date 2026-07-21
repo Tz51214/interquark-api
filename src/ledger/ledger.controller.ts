@@ -7,9 +7,10 @@ import {
   Patch,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -69,6 +70,20 @@ export class LedgerController {
   @Roles(UserRole.ADMIN)
   findOne(@Param('id') id: string) {
     return this.ledgerService.findOne(id);
+  }
+
+  @Get(':id/receipt')
+  async downloadReceipt(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { userId: string; role: string } },
+    @Res() res: Response,
+  ) {
+    const pdf = await this.ledgerService.generateReceiptPdf(id, req.user.userId, req.user.role);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="receipt-${id}.pdf"`,
+    });
+    res.send(pdf);
   }
 
   @Patch(':id')
