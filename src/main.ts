@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 import { join } from 'path';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import helmet from 'helmet';
 
 // Safety nets: without these, an unhandled promise rejection or an
 // uncaught exception anywhere in the process (not just inside a
@@ -27,6 +28,10 @@ async function bootstrap() {
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads/',
   });
+
+  // Sets standard security headers (clickjacking protection, MIME-sniffing
+  // prevention, etc.) — no configuration needed for the defaults to help.
+  app.use(helmet());
 
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:5173',
