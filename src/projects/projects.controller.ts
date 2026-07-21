@@ -19,7 +19,7 @@ export class ProjectsController {
   @UseGuards(JwtAuthGuard)
   @Get('mine')
   findMine(@Req() req: any) {
-    return this.projectsService.findMine(req.user.userId);
+    return this.projectsService.findMine(req.user.userId, req.user.role);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

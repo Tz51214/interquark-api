@@ -19,9 +19,14 @@ export class ProjectsService {
     });
   }
 
-  async findMine(freelancerId: number) {
+  async findMine(userId: number, role: string) {
+    const where =
+      role === 'client'
+        ? { order: { customer: { id: userId } } }
+        : { freelancer: { id: userId } };
+
     return this.projectsRepository.find({
-      where: { freelancer: { id: freelancerId } },
+      where,
       relations: ['order', 'order.customer', 'freelancer'],
       order: { createdAt: 'DESC' },
     });
