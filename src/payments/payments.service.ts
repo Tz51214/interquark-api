@@ -228,13 +228,26 @@ export class PaymentsService {
       throw new BadRequestException('Could not resolve order details from PayPal order');
     }
 
-    const order = await this.ordersRepository.findOne({ where: { id: orderId } });
+    const order = await this.ordersRepository.findOne({
+      where: { id: orderId },
+      relations: ['items'],
+    });
     if (order) {
       order.status = OrderStatus.ACTIVE;
       await this.ordersRepository.save(order);
     }
 
-    return { received: true, orderId };
+    return {
+      received: true,
+      orderId,
+      totalAmount: order ? Number(order.totalAmount) : 0,
+      items: order?.items?.map((i) => ({
+        name: i.name,
+        sku: i.sku,
+        tier: i.tier,
+        price: Number(i.price),
+      })) || [],
+    };
   }
 
   // New — issues a real refund for an order, through whichever gateway
