@@ -143,9 +143,12 @@ export class InvoicesService {
   }
 
   private async nextInvoiceNumber() {
-    const count = await this.repo.count();
+    // A real Postgres sequence — guaranteed atomic even under truly
+    // simultaneous requests, unlike count()+1 which can race.
+    const result = await this.repo.query(`SELECT nextval('invoice_number_seq') as n`);
+    const n = Number(result[0].n);
     const year = new Date().getFullYear();
-    return `INV-${year}-${String(count + 1).padStart(5, '0')}`;
+    return `INV-${year}-${String(n).padStart(5, '0')}`;
   }
 
   // Wraps invoice creation with a few retries — if two orders get
