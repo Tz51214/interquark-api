@@ -16,11 +16,6 @@ class OrderItemDto {
 
   @IsNumber()
   price: number;
-
-  @IsArray()
-  @IsOptional()
-  @IsString({ each: true })
-  features?: string[];
 }
 
 export class CreateOrderDto {

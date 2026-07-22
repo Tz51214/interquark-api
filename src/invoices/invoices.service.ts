@@ -51,9 +51,8 @@ export class InvoicesService {
       doc.text(`Email: ${invoice.customer.email}`);
       doc.moveDown(1.5);
 
-      // Itemized line items with their tier and included features —
-      // gives the customer a real breakdown of what they paid for,
-      // not just a single total.
+      // Itemized line items with their tier — gives the customer a
+      // real breakdown of what they paid for, not just a single total.
       if (invoice.order?.items?.length) {
         doc.fontSize(14).fillColor('#000').text('Items', { underline: true });
         doc.moveDown(0.5);
@@ -63,14 +62,7 @@ export class InvoicesService {
             continued: true,
           });
           doc.text(`  £${Number(item.price).toFixed(2)}`, { align: 'right' });
-
-          if (item.features?.length) {
-            doc.fontSize(9).fillColor('#666');
-            for (const feature of item.features) {
-              doc.text(`  • ${feature}`);
-            }
-          }
-          doc.moveDown(0.7);
+          doc.moveDown(0.4);
         }
         doc.moveDown(1);
       }
