@@ -162,7 +162,11 @@ export class InvoicesService {
       try {
         return await buildInvoice(invoiceNumber);
       } catch (err: any) {
-        const isDuplicate = err?.code === '23505'; // Postgres unique_violation
+        // TypeORM's QueryFailedError sometimes exposes the real Postgres
+        // error code at .code, sometimes only at .driverError.code —
+        // checking both makes this reliable across versions.
+        const pgCode = err?.code || err?.driverError?.code;
+        const isDuplicate = pgCode === '23505';
         if (!isDuplicate || i === attempts - 1) throw err;
         // otherwise loop and try again with a freshly generated number
       }
