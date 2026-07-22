@@ -148,6 +148,28 @@ export class InvoicesService {
     return `INV-${year}-${String(count + 1).padStart(5, '0')}`;
   }
 
+  // Wraps invoice creation with a few retries — if two orders get
+  // created close together, both can read the same count() before
+  // either saves, producing a duplicate invoiceNumber. Catching the
+  // unique-constraint violation and regenerating a fresh number is a
+  // simple, effective fix without needing a dedicated DB sequence.
+  private async createWithRetry(
+    buildInvoice: (invoiceNumber: string) => Promise<Invoice>,
+    attempts = 5,
+  ): Promise<Invoice> {
+    for (let i = 0; i < attempts; i++) {
+      const invoiceNumber = await this.nextInvoiceNumber();
+      try {
+        return await buildInvoice(invoiceNumber);
+      } catch (err: any) {
+        const isDuplicate = err?.code === '23505'; // Postgres unique_violation
+        if (!isDuplicate || i === attempts - 1) throw err;
+        // otherwise loop and try again with a freshly generated number
+      }
+    }
+    throw new Error('Could not generate a unique invoice number.');
+  }
+
   async create(dto: CreateInvoiceDto) {
     const customer = await this.usersRepo.findOne({ where: { id: dto.customerId as any } });
     if (!customer) throw new NotFoundException('Customer not found.');
@@ -158,16 +180,18 @@ export class InvoicesService {
       if (!order) throw new NotFoundException('Order not found.');
     }
 
-    const invoice = this.repo.create({
-      invoiceNumber: await this.nextInvoiceNumber(),
-      customer,
-      order,
-      amount: dto.amount,
-      status: dto.status ?? InvoiceStatus.DRAFT,
-      dueAt: dto.dueAt ? new Date(dto.dueAt) : null,
-      notes: dto.notes,
+    return this.createWithRetry(async (invoiceNumber) => {
+      const invoice = this.repo.create({
+        invoiceNumber,
+        customer,
+        order,
+        amount: dto.amount,
+        status: dto.status ?? InvoiceStatus.DRAFT,
+        dueAt: dto.dueAt ? new Date(dto.dueAt) : null,
+        notes: dto.notes,
+      });
+      return this.repo.save(invoice);
     });
-    return this.repo.save(invoice);
   }
 
   findAll() {
