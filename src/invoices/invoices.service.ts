@@ -37,9 +37,9 @@ export class InvoicesService {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      doc.fontSize(20).text('Interquark', { align: 'left' });
+      doc.fontSize(20).fillColor('#5b5fef').text('Interquark', { align: 'left' });
       doc.fontSize(10).fillColor('#666').text('Invoice', { align: 'left' });
-      doc.moveDown(2);
+      doc.moveDown(1.5);
 
       doc.fillColor('#000').fontSize(12);
       doc.text(`Invoice number: ${invoice.invoiceNumber}`);
@@ -49,9 +49,33 @@ export class InvoicesService {
 
       doc.text(`Billed to: ${invoice.customer.fullName}`);
       doc.text(`Email: ${invoice.customer.email}`);
-      doc.moveDown(2);
+      doc.moveDown(1.5);
 
-      doc.fontSize(14).text('Amount due', { underline: true });
+      // Itemized line items with their tier and included features —
+      // gives the customer a real breakdown of what they paid for,
+      // not just a single total.
+      if (invoice.order?.items?.length) {
+        doc.fontSize(14).fillColor('#000').text('Items', { underline: true });
+        doc.moveDown(0.5);
+
+        for (const item of invoice.order.items) {
+          doc.fontSize(12).fillColor('#000').text(`${item.name} — ${item.tier}`, {
+            continued: true,
+          });
+          doc.text(`  £${Number(item.price).toFixed(2)}`, { align: 'right' });
+
+          if (item.features?.length) {
+            doc.fontSize(9).fillColor('#666');
+            for (const feature of item.features) {
+              doc.text(`  • ${feature}`);
+            }
+          }
+          doc.moveDown(0.7);
+        }
+        doc.moveDown(1);
+      }
+
+      doc.fontSize(14).fillColor('#000').text('Amount due', { underline: true });
       doc.fontSize(20).text(`£${Number(invoice.amount).toFixed(2)}`);
       doc.moveDown(2);
 

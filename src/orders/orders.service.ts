@@ -39,6 +39,7 @@ export class OrdersService {
           name: item.name,
           tier: item.tier,
           price: item.price,
+          features: item.features || null,
         }),
       ),
     });

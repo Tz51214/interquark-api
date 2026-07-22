@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsNotEmpty, IsNumber, IsString, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 
 class OrderItemDto {
   @IsString()
@@ -16,6 +16,11 @@ class OrderItemDto {
 
   @IsNumber()
   price: number;
+
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  features?: string[];
 }
 
 export class CreateOrderDto {
