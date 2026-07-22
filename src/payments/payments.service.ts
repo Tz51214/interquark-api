@@ -146,7 +146,7 @@ export class PaymentsService {
     if (!plan) throw new BadRequestException('Invalid subscription tier');
 
     const customId = `${freelancerId}:${tier}`;
-    const order = await this.paypalService.createOrder(plan.price, customId);
+    const order = await this.paypalService.createOrder(plan.price, customId, '/paypal/return');
 
     const approveLink = order.links?.find((link: any) => link.rel === 'approve');
     return { orderId: order.id, approveUrl: approveLink?.href };
@@ -204,6 +204,7 @@ export class PaymentsService {
     const paypalOrder = await this.paypalService.createOrder(
       Number(order.totalAmount),
       String(order.id),
+      '/paypal/return',
     );
 
     order.paypalOrderId = paypalOrder.id;

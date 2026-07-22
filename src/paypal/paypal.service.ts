@@ -22,7 +22,8 @@ export class PayPalService {
   // Creates a PayPal order for a given amount (GBP). Metadata (tier,
   // freelancerId) is stored in custom_id since PayPal orders don't
   // support arbitrary metadata like Stripe does.
-  async createOrder(amount: number, customId: string) {
+  async createOrder(amount: number, customId: string, returnPath: string) {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
     const request = new paypal.orders.OrdersCreateRequest();
     request.prefer('return=representation');
     request.requestBody({
@@ -36,6 +37,13 @@ export class PayPalService {
           custom_id: customId,
         },
       ],
+      // Tells PayPal exactly where to send the user back to after they
+      // approve or cancel — without this, PayPal has no way to know,
+      // and the user gets stranded on a generic PayPal page.
+      application_context: {
+        return_url: `${frontendUrl}${returnPath}`,
+        cancel_url: `${frontendUrl}${returnPath}?cancelled=1`,
+      },
     });
 
     const response = await this.client.execute(request);
