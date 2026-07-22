@@ -31,49 +31,112 @@ export class InvoicesService {
     }
 
     return new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 50 });
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      doc.fontSize(20).fillColor('#5b5fef').text('Interquark', { align: 'left' });
-      doc.fontSize(10).fillColor('#666').text('Invoice', { align: 'left' });
-      doc.moveDown(1.5);
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const left = doc.page.margins.left;
+      const brand = '#5b5fef';
+      const dark = '#0b1120';
+      const gray = '#64748b';
+      const lightBorder = '#e2e8f0';
 
-      doc.fillColor('#000').fontSize(12);
-      doc.text(`Invoice number: ${invoice.invoiceNumber}`);
-      doc.text(`Date: ${invoice.createdAt.toLocaleDateString('en-GB')}`);
-      doc.text(`Status: ${invoice.status.toUpperCase()}`);
-      doc.moveDown();
+      // Header: company on the left, invoice meta on the right
+      doc.fontSize(22).fillColor(brand).font('Helvetica-Bold').text('Interquark', left, 50);
+      doc.fontSize(9).fillColor(gray).font('Helvetica')
+        .text('Interquark Ltd', left, 78)
+        .text('23 Abbot Street, Wrexham, LL11 1TA', left, 91)
+        .text('hello@interquark.co.uk', left, 104);
 
-      doc.text(`Billed to: ${invoice.customer.fullName}`);
-      doc.text(`Email: ${invoice.customer.email}`);
-      doc.moveDown(1.5);
+      doc.fontSize(20).fillColor(dark).font('Helvetica-Bold')
+        .text('INVOICE', left, 50, { width: pageWidth, align: 'right' });
+      doc.fontSize(9).fillColor(gray).font('Helvetica')
+        .text(`Invoice #: ${invoice.invoiceNumber}`, left, 78, { width: pageWidth, align: 'right' })
+        .text(`Date: ${invoice.createdAt.toLocaleDateString('en-GB')}`, left, 91, { width: pageWidth, align: 'right' })
+        .text(`Status: ${invoice.status.toUpperCase()}`, left, 104, { width: pageWidth, align: 'right' });
 
-      // Itemized line items with their tier — gives the customer a
-      // real breakdown of what they paid for, not just a single total.
+      doc.moveTo(left, 130).lineTo(left + pageWidth, 130).strokeColor(lightBorder).stroke();
+
+      // Billed to
+      doc.fontSize(9).fillColor(gray).font('Helvetica-Bold').text('BILLED TO', left, 150);
+      doc.fontSize(11).fillColor(dark).font('Helvetica-Bold').text(invoice.customer.fullName, left, 164);
+      doc.fontSize(10).fillColor(gray).font('Helvetica').text(invoice.customer.email, left, 180);
+
+      // Items table
+      let y = 220;
+      const col1 = left; // service
+      const col2 = left + pageWidth * 0.5; // tier
+      const col3 = left + pageWidth * 0.72; // qty (always 1, but keeps layout standard)
+      const col4 = left + pageWidth * 0.85; // amount
+
+      doc.rect(left, y, pageWidth, 24).fill('#f8fafc');
+      doc.fontSize(9).fillColor(gray).font('Helvetica-Bold')
+        .text('SERVICE', col1 + 8, y + 8)
+        .text('TIER', col2, y + 8)
+        .text('QTY', col3, y + 8)
+        .text('AMOUNT', col4, y + 8, { width: left + pageWidth - col4 - 8, align: 'right' });
+      y += 24;
+
       if (invoice.order?.items?.length) {
-        doc.fontSize(14).fillColor('#000').text('Items', { underline: true });
-        doc.moveDown(0.5);
-
         for (const item of invoice.order.items) {
-          doc.fontSize(12).fillColor('#000').text(`${item.name} — ${item.tier}`, {
-            continued: true,
-          });
-          doc.text(`  £${Number(item.price).toFixed(2)}`, { align: 'right' });
-          doc.moveDown(0.4);
+          const rowHeight = 26;
+          doc.fontSize(10).fillColor(dark).font('Helvetica')
+            .text(item.name, col1 + 8, y + 8, { width: col2 - col1 - 16 })
+            .text(item.tier, col2, y + 8, { width: col3 - col2 })
+            .text('1', col3, y + 8, { width: col4 - col3 })
+            .text(`£${Number(item.price).toFixed(2)}`, col4, y + 8, {
+              width: left + pageWidth - col4 - 8,
+              align: 'right',
+            });
+          doc.moveTo(left, y + rowHeight).lineTo(left + pageWidth, y + rowHeight)
+            .strokeColor(lightBorder).stroke();
+          y += rowHeight;
         }
-        doc.moveDown(1);
+      } else {
+        doc.fontSize(10).fillColor(dark).font('Helvetica')
+          .text('Service charge', col1 + 8, y + 8, { width: col2 - col1 - 16 })
+          .text(`£${Number(invoice.amount).toFixed(2)}`, col4, y + 8, {
+            width: left + pageWidth - col4 - 8,
+            align: 'right',
+          });
+        doc.moveTo(left, y + 26).lineTo(left + pageWidth, y + 26).strokeColor(lightBorder).stroke();
+        y += 26;
       }
 
-      doc.fontSize(14).fillColor('#000').text('Amount due', { underline: true });
-      doc.fontSize(20).text(`£${Number(invoice.amount).toFixed(2)}`);
-      doc.moveDown(2);
+      y += 20;
+
+      // Total box, right-aligned
+      const totalBoxWidth = 220;
+      const totalBoxX = left + pageWidth - totalBoxWidth;
+      doc.fontSize(10).fillColor(gray).font('Helvetica')
+        .text('Total due', totalBoxX, y, { width: totalBoxWidth - 90 });
+      doc.fontSize(16).fillColor(brand).font('Helvetica-Bold')
+        .text(`£${Number(invoice.amount).toFixed(2)}`, totalBoxX, y - 3, {
+          width: totalBoxWidth,
+          align: 'right',
+        });
+
+      y += 40;
 
       if (invoice.notes) {
-        doc.fontSize(10).fillColor('#666').text(invoice.notes);
+        doc.fontSize(9).fillColor(gray).font('Helvetica')
+          .text(invoice.notes, left, y, { width: pageWidth });
+        y += 30;
       }
+
+      // Footer
+      const footerY = doc.page.height - doc.page.margins.bottom - 30;
+      doc.moveTo(left, footerY).lineTo(left + pageWidth, footerY).strokeColor(lightBorder).stroke();
+      doc.fontSize(8).fillColor(gray).font('Helvetica')
+        .text(
+          'Interquark Ltd — registered in England and Wales — hello@interquark.co.uk',
+          left,
+          footerY + 10,
+          { width: pageWidth, align: 'center' },
+        );
 
       doc.end();
     });
