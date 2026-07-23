@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as net from 'net';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
@@ -42,6 +43,40 @@ export class EmailService {
       fromAddress: this.fromAddress,
       transporterInitialized: !!this.transporter,
     };
+  }
+
+  // Raw TCP connection test — bypasses nodemailer/TLS entirely, so we
+  // can tell definitively whether this is a network-level block
+  // (connection never opens) vs. something in the SMTP/TLS handshake
+  // itself (connection opens, but nodemailer still fails later).
+  async testRawConnection(): Promise<{ success: boolean; message: string; ms: number }> {
+    const host = this.configService.get<string>('SMTP_HOST') || '';
+    const port = Number(this.configService.get<string>('SMTP_PORT')) || 587;
+    const start = Date.now();
+
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      const timeout = 10000;
+
+      socket.setTimeout(timeout);
+
+      socket.on('connect', () => {
+        socket.destroy();
+        resolve({ success: true, message: `TCP connection succeeded to ${host}:${port}`, ms: Date.now() - start });
+      });
+
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve({ success: false, message: `TCP connection timed out after ${timeout}ms`, ms: Date.now() - start });
+      });
+
+      socket.on('error', (err) => {
+        socket.destroy();
+        resolve({ success: false, message: `TCP connection error: ${err.message}`, ms: Date.now() - start });
+      });
+
+      socket.connect(port, host);
+    });
   }
 
   private async send(to: string, subject: string, html: string) {
