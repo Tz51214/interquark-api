@@ -1,93 +1,54 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as net from 'net';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private transporter: nodemailer.Transporter | null = null;
+  private apiKey: string | null = null;
   private fromAddress: string;
 
   constructor(private readonly configService: ConfigService) {
-    const host = this.configService.get<string>('SMTP_HOST');
-    const port = this.configService.get<string>('SMTP_PORT');
-    const user = this.configService.get<string>('SMTP_USER');
-    const pass = this.configService.get<string>('SMTP_PASS');
-    this.fromAddress = this.configService.get<string>('SMTP_FROM') || 'no-reply@interquark.com';
-
-    if (host && user && pass) {
-      this.transporter = nodemailer.createTransport({
-        host,
-        port: Number(port) || 587,
-        secure: Number(port) === 465,
-        requireTLS: Number(port) !== 465,
-        auth: { user, pass },
-        connectionTimeout: 15000,
-        greetingTimeout: 15000,
-        socketTimeout: 15000,
-      });
-    }
+    this.apiKey = this.configService.get<string>('BREVO_API_KEY') || null;
+    this.fromAddress = this.configService.get<string>('SMTP_FROM') || 'no-reply@interquark.co.uk';
   }
 
-  // Safe diagnostic — reports whether each required env var is set
-  // (true/false only, never the actual values) and whether the
-  // transporter actually initialized. Lets us verify SMTP config
-  // without exposing secrets or needing to trigger a real email.
+  // Safe diagnostic — reports whether the API key is set (true/false
+  // only, never the actual value).
   getDiagnostics() {
     return {
-      hostSet: !!this.configService.get<string>('SMTP_HOST'),
-      portSet: !!this.configService.get<string>('SMTP_PORT'),
-      userSet: !!this.configService.get<string>('SMTP_USER'),
-      passSet: !!this.configService.get<string>('SMTP_PASS'),
+      apiKeySet: !!this.apiKey,
       fromAddress: this.fromAddress,
-      transporterInitialized: !!this.transporter,
     };
   }
 
-  // Raw TCP connection test — bypasses nodemailer/TLS entirely, so we
-  // can tell definitively whether this is a network-level block
-  // (connection never opens) vs. something in the SMTP/TLS handshake
-  // itself (connection opens, but nodemailer still fails later).
-  async testRawConnection(): Promise<{ success: boolean; message: string; ms: number }> {
-    const host = this.configService.get<string>('SMTP_HOST') || '';
-    const port = Number(this.configService.get<string>('SMTP_PORT')) || 587;
-    const start = Date.now();
-
-    return new Promise((resolve) => {
-      const socket = new net.Socket();
-      const timeout = 10000;
-
-      socket.setTimeout(timeout);
-
-      socket.on('connect', () => {
-        socket.destroy();
-        resolve({ success: true, message: `TCP connection succeeded to ${host}:${port}`, ms: Date.now() - start });
-      });
-
-      socket.on('timeout', () => {
-        socket.destroy();
-        resolve({ success: false, message: `TCP connection timed out after ${timeout}ms`, ms: Date.now() - start });
-      });
-
-      socket.on('error', (err) => {
-        socket.destroy();
-        resolve({ success: false, message: `TCP connection error: ${err.message}`, ms: Date.now() - start });
-      });
-
-      socket.connect(port, host);
-    });
-  }
-
   private async send(to: string, subject: string, html: string) {
-    if (!this.transporter) {
-      this.logger.warn(`SMTP not configured — skipping email to ${to}: "${subject}"`);
+    if (!this.apiKey) {
+      this.logger.warn(`Brevo API not configured — skipping email to ${to}: "${subject}"`);
       return;
     }
     try {
-      await this.transporter.sendMail({ from: this.fromAddress, to, subject, html });
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': this.apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'Interquark', email: this.fromAddress },
+          to: [{ email: to }],
+          subject,
+          htmlContent: html,
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Brevo API returned ${res.status}: ${body}`);
+      }
+
       this.logger.log(`Email sent to ${to}: "${subject}"`);
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`Failed to send email to ${to}: ${err.message}`);
     }
   }
@@ -130,7 +91,6 @@ export class EmailService {
     );
   }
 
-  // New — order confirmation, sent right after a customer places an order.
   async sendOrderConfirmation(
     to: string,
     fullName: string,
@@ -144,8 +104,6 @@ export class EmailService {
     );
   }
 
-  // New — notifies the studio inbox when someone submits the "Get in
-  // touch" contact form on the homepage.
   async sendContactNotification(
     fromName: string,
     fromEmail: string,
@@ -159,7 +117,6 @@ export class EmailService {
     );
   }
 
-  // New — password reset link, sent from POST /auth/forgot-password.
   async sendPasswordReset(to: string, fullName: string, resetLink: string) {
     await this.send(
       to,

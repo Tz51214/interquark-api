@@ -29,10 +29,4 @@ export class ContactController {
     return this.emailService.getDiagnostics();
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Get('email-tcp-test')
-  emailTcpTest() {
-    return this.emailService.testRawConnection();
-  }
 }
