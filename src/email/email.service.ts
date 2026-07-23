@@ -25,6 +25,21 @@ export class EmailService {
     }
   }
 
+  // Safe diagnostic — reports whether each required env var is set
+  // (true/false only, never the actual values) and whether the
+  // transporter actually initialized. Lets us verify SMTP config
+  // without exposing secrets or needing to trigger a real email.
+  getDiagnostics() {
+    return {
+      hostSet: !!this.configService.get<string>('SMTP_HOST'),
+      portSet: !!this.configService.get<string>('SMTP_PORT'),
+      userSet: !!this.configService.get<string>('SMTP_USER'),
+      passSet: !!this.configService.get<string>('SMTP_PASS'),
+      fromAddress: this.fromAddress,
+      transporterInitialized: !!this.transporter,
+    };
+  }
+
   private async send(to: string, subject: string, html: string) {
     if (!this.transporter) {
       this.logger.warn(`SMTP not configured — skipping email to ${to}: "${subject}"`);
