@@ -20,7 +20,11 @@ export class EmailService {
         host,
         port: Number(port) || 587,
         secure: Number(port) === 465,
+        requireTLS: Number(port) !== 465,
         auth: { user, pass },
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 15000,
       });
     }
   }
