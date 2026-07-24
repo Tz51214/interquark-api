@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -8,6 +8,21 @@ import { UserRole } from './entities/user.entity';
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  // Self-service — any signed-in user can view/update their own
+  // notification preferences. Must be declared before @Get(':id') for
+  // the same reason as the "online" route above.
+  @UseGuards(JwtAuthGuard)
+  @Get('me/notifications')
+  getMyNotificationPreferences(@Req() req: any) {
+    return this.usersService.getNotificationPreferences(req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me/notifications')
+  updateMyNotificationPreferences(@Req() req: any, @Body() body: Record<string, boolean>) {
+    return this.usersService.updateNotificationPreferences(req.user.userId, body);
+  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

@@ -18,6 +18,33 @@ export class UsersService {
     return 'This action adds a new user';
   }
 
+  // Defaults — every toggle is on unless the user has explicitly
+  // turned it off. Lets the frontend render a full, sensible set of
+  // switches even for users who've never touched this before.
+  async getNotificationPreferences(userId: number) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found.');
+
+    return {
+      orderUpdates: true,
+      invoices: true,
+      projectMessages: true,
+      projectAssignments: true,
+      payouts: true,
+      billing: true,
+      ...(user.notificationPreferences || {}),
+    };
+  }
+
+  async updateNotificationPreferences(userId: number, prefs: Record<string, boolean>) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found.');
+
+    user.notificationPreferences = { ...(user.notificationPreferences || {}), ...prefs };
+    await this.usersRepository.save(user);
+    return user.notificationPreferences;
+  }
+
   async findAll(role?: UserRole) {
     const where = role ? { role } : {};
     const users = await this.usersRepository.find({ where });
