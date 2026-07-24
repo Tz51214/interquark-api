@@ -66,6 +66,19 @@ export class User {
   @Column({ type: 'timestamp', nullable: true })
   lastActiveAt: Date | null;
 
+  // New — per-user toggles for which automated emails they receive.
+  // Stored as JSON so we can add more notification types later without
+  // a schema migration each time. All default to true (opt-out model).
+  @Column({ type: 'simple-json', nullable: true })
+  notificationPreferences: {
+    orderUpdates?: boolean;
+    invoices?: boolean;
+    projectMessages?: boolean;
+    projectAssignments?: boolean;
+    payouts?: boolean;
+    billing?: boolean;
+  } | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
