@@ -69,6 +69,12 @@ export class User {
   // New — per-user toggles for which automated emails they receive.
   // Stored as JSON so we can add more notification types later without
   // a schema migration each time. All default to true (opt-out model).
+  // New — set once an abandoned-signup reminder email has been sent to
+  // a freelancer who registered but never completed subscription
+  // payment, so the scheduled job never emails them twice.
+  @Column({ type: 'timestamp', nullable: true })
+  signupReminderSentAt: Date | null;
+
   @Column({ type: 'simple-json', nullable: true })
   notificationPreferences: {
     orderUpdates?: boolean;

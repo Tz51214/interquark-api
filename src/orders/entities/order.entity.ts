@@ -46,6 +46,12 @@ export class Order {
   @Column({ nullable: true })
   paypalOrderId: string;
 
+  // New — set once an abandoned-checkout reminder email has been
+  // sent, so the scheduled job never emails the same pending order
+  // twice.
+  @Column({ type: 'timestamp', nullable: true })
+  reminderSentAt: Date | null;
+
   @OneToMany(() => Project, (project) => project.order)
   projects: Project[];
 
