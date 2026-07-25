@@ -3,11 +3,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SubscriptionsService } from './subscriptions.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { Subscription } from './entities/subscription.entity';
+import { User } from '../users/entities/user.entity';
 import { LedgerModule } from '../ledger/ledger.module';
+import { EmailModule } from '../email/email.module';
 import { SubscriptionActiveGuard } from '../auth/guards/subscription-active.guard';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Subscription]), LedgerModule],
+  imports: [TypeOrmModule.forFeature([Subscription, User]), LedgerModule, EmailModule],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService, SubscriptionActiveGuard],
   exports: [TypeOrmModule, SubscriptionsService, SubscriptionActiveGuard],

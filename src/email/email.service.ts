@@ -21,12 +21,30 @@ export class EmailService {
     };
   }
 
-  private async send(to: string, subject: string, html: string) {
+  private async send(
+    to: string,
+    subject: string,
+    html: string,
+    attachment?: { name: string; content: Buffer },
+  ) {
     if (!this.apiKey) {
       this.logger.warn(`Brevo API not configured — skipping email to ${to}: "${subject}"`);
       return;
     }
     try {
+      const body: Record<string, any> = {
+        sender: { name: 'Interquark', email: this.fromAddress },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      };
+
+      if (attachment) {
+        body.attachment = [
+          { name: attachment.name, content: attachment.content.toString('base64') },
+        ];
+      }
+
       const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
@@ -34,17 +52,12 @@ export class EmailService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          sender: { name: 'Interquark', email: this.fromAddress },
-          to: [{ email: to }],
-          subject,
-          htmlContent: html,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`Brevo API returned ${res.status}: ${body}`);
+        const errBody = await res.text();
+        throw new Error(`Brevo API returned ${res.status}: ${errBody}`);
       }
 
       this.logger.log(`Email sent to ${to}: "${subject}"`);
@@ -59,6 +72,52 @@ export class EmailService {
       'Welcome to Interquark',
       `<p>Hi ${fullName},</p><p>Welcome to Interquark! Your account has been created. You can now browse services and place orders.</p><p>— The Interquark Team</p>`,
     );
+  }
+
+  // New — sent right after a freelancer's subscription payment
+  // succeeds, with the actual payment receipt PDF attached.
+  async sendSubscriptionReceipt(
+    to: string,
+    fullName: string,
+    tier: string,
+    amount: number,
+    receiptPdf: Buffer,
+    receiptId: string,
+  ) {
+    if (!this.apiKey) {
+      this.logger.warn(`Brevo API not configured — skipping receipt email to ${to}`);
+      return;
+    }
+    try {
+      const email = {
+        sender: { name: 'Interquark', email: this.fromAddress },
+        to: [{ email: to }],
+        subject: 'Your Interquark subscription is active — receipt attached',
+        htmlContent: `<p>Hi ${fullName},</p><p>Your payment of £${amount.toFixed(2)} for the <strong>${tier}</strong> plan was successful, and your freelancer account is now active.</p><p>Your receipt is attached to this email.</p><p>— The Interquark Team</p>`,
+        attachment: [
+          { name: `receipt-${receiptId}.pdf`, content: receiptPdf.toString('base64') },
+        ],
+      };
+
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': this.apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(email),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`Brevo API returned ${res.status}: ${errBody}`);
+      }
+
+      this.logger.log(`Subscription receipt sent to ${to}`);
+    } catch (err: any) {
+      this.logger.error(`Failed to send subscription receipt to ${to}: ${err.message}`);
+    }
   }
 
   async sendFreelancerWelcome(to: string, fullName: string, tier?: string) {

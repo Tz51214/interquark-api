@@ -9,13 +9,18 @@ import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
 import { RefundSubscriptionDto } from './dto/refund-subscription.dto';
 import { LedgerService } from '../ledger/ledger.service';
 import { PaymentMethod, PaymentStatus, TransactionType } from '../ledger/entities/payment-record.entity';
+import { EmailService } from '../email/email.service';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class SubscriptionsService {
   constructor(
     @InjectRepository(Subscription)
     private readonly subscriptionsRepository: Repository<Subscription>,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
     private readonly ledgerService: LedgerService,
+    private readonly emailService: EmailService,
   ) {}
 
   create(createSubscriptionDto: CreateSubscriptionDto) {
@@ -117,7 +122,7 @@ export class SubscriptionsService {
     });
     const saved = await this.subscriptionsRepository.save(subscription);
 
-    await this.ledgerService.create({
+    const ledgerRecord = await this.ledgerService.create({
       userId: String(params.freelancerId),
       subscriptionId: String(saved.id),
       amount: params.price,
@@ -131,6 +136,32 @@ export class SubscriptionsService {
           ? `${params.gateway} reference: ${params.externalPaymentId}`
           : undefined,
     });
+
+    // Email the freelancer their receipt right away — best-effort;
+    // a failure here shouldn't block the subscription from activating.
+    try {
+      const freelancer = await this.usersRepository.findOne({
+        where: { id: params.freelancerId },
+      });
+      if (freelancer) {
+        const receiptPdf = await this.ledgerService.generateReceiptPdf(
+          String(ledgerRecord.id),
+          String(params.freelancerId),
+          'admin',
+        );
+        await this.emailService.sendSubscriptionReceipt(
+          freelancer.email,
+          freelancer.fullName,
+          params.tier,
+          params.price,
+          receiptPdf,
+          String(ledgerRecord.id),
+        );
+      }
+    } catch (err) {
+      // Logged inside emailService/ledgerService already — swallow
+      // here so a receipt-email failure never breaks activation.
+    }
 
     return saved;
   }
