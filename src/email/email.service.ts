@@ -117,6 +117,27 @@ export class EmailService {
     );
   }
 
+  async sendAbandonedCartReminder(
+    to: string,
+    fullName: string,
+    orderItems: string,
+    checkoutLink: string,
+  ) {
+    await this.send(
+      to,
+      "You left something in your cart — Interquark",
+      `<p>Hi ${fullName},</p><p>You started an order for <strong>${orderItems}</strong> but didn't finish checking out. Your items are still saved.</p><p><a href="${checkoutLink}">Complete your order</a></p><p>— The Interquark Team</p>`,
+    );
+  }
+
+  async sendAbandonedSignupReminder(to: string, fullName: string, subscribeLink: string) {
+    await this.send(
+      to,
+      "Finish setting up your Interquark freelancer account",
+      `<p>Hi ${fullName},</p><p>You created a freelancer account on Interquark but haven't activated your membership plan yet. Pick a plan to start getting matched with projects.</p><p><a href="${subscribeLink}">Choose your plan</a></p><p>— The Interquark Team</p>`,
+    );
+  }
+
   async sendPasswordReset(to: string, fullName: string, resetLink: string) {
     await this.send(
       to,

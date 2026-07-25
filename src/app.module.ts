@@ -1,6 +1,7 @@
 import { MessagesModule } from './messages/messages.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
@@ -14,6 +15,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { EmailModule } from './email/email.module';
 import { ContactModule } from './contact/contact.module';
 import { SupportChatModule } from './support/support-chat.module';
+import { RemindersModule } from './reminders/reminders.module';
 import { ProductsModule } from './products/products.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { LedgerModule } from './ledger/ledger.module';
@@ -31,6 +33,8 @@ import { APP_GUARD } from '@nestjs/core';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
+    RemindersModule,
 
     TypeOrmModule.forRoot({
       type: 'postgres',
