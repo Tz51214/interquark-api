@@ -29,6 +29,36 @@ export class RemindersService {
     return this.configService.get<string>('FRONTEND_URL') || 'https://interquark.co.uk';
   }
 
+  // Admin-facing — lists currently abandoned carts/signups (same
+  // logic as the scheduled checks, but read-only, for visibility in
+  // the admin panel regardless of whether a reminder has been sent).
+  async listAbandonedCarts() {
+    const cutoff = new Date(Date.now() - ABANDON_THRESHOLD_HOURS * 60 * 60 * 1000);
+    return this.ordersRepo.find({
+      where: { status: OrderStatus.PENDING, createdAt: LessThan(cutoff) },
+      relations: ['customer', 'items'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async listAbandonedSignups() {
+    const cutoff = new Date(Date.now() - ABANDON_THRESHOLD_HOURS * 60 * 60 * 1000);
+    const candidates = await this.usersRepo.find({
+      where: { role: UserRole.FREELANCER, createdAt: LessThan(cutoff) },
+      order: { createdAt: 'DESC' },
+    });
+
+    const results: { user: User; hasSubscription: boolean }[] = [];
+    for (const user of candidates) {
+      const sub = await this.subsRepo.findOne({ where: { freelancer: { id: user.id } } });
+      if (!sub) results.push({ user, hasSubscription: false });
+    }
+    return results.map((r) => {
+      const { password, ...safe } = r.user as any;
+      return safe;
+    });
+  }
+
   @Cron(CronExpression.EVERY_HOUR)
   async checkAbandonedCarts() {
     const cutoff = new Date(Date.now() - ABANDON_THRESHOLD_HOURS * 60 * 60 * 1000);
