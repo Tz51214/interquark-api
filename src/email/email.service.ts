@@ -150,6 +150,52 @@ export class EmailService {
     );
   }
 
+  // New — sent right after a customer's order payment succeeds,
+  // with the actual invoice PDF attached.
+  async sendOrderReceipt(
+    to: string,
+    fullName: string,
+    orderItems: string,
+    amount: number,
+    invoicePdf: Buffer,
+    invoiceNumber: string,
+  ) {
+    if (!this.apiKey) {
+      this.logger.warn(`Brevo API not configured — skipping order receipt email to ${to}`);
+      return;
+    }
+    try {
+      const email = {
+        sender: { name: 'Interquark', email: this.fromAddress },
+        to: [{ email: to }],
+        subject: 'Your Interquark order is confirmed — invoice attached',
+        htmlContent: `<p>Hi ${fullName},</p><p>Your payment of £${amount.toFixed(2)} for <strong>${orderItems}</strong> was successful. We'll be in touch shortly to get things moving.</p><p>Your invoice is attached to this email.</p><p>— The Interquark Team</p>`,
+        attachment: [
+          { name: `${invoiceNumber}.pdf`, content: invoicePdf.toString('base64') },
+        ],
+      };
+
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': this.apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(email),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`Brevo API returned ${res.status}: ${errBody}`);
+      }
+
+      this.logger.log(`Order receipt sent to ${to}`);
+    } catch (err: any) {
+      this.logger.error(`Failed to send order receipt to ${to}: ${err.message}`);
+    }
+  }
+
   async sendOrderConfirmation(
     to: string,
     fullName: string,

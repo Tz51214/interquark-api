@@ -9,6 +9,8 @@ import { TIER_PRICING } from '../subscriptions/tier-pricing';
 import { SubscriptionTier } from '../subscriptions/entities/subscription.entity';
 import { PaymentMethod } from '../ledger/entities/payment-record.entity';
 import { PayPalService } from '../paypal/paypal.service';
+import { InvoicesService } from '../invoices/invoices.service';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class PaymentsService {
@@ -19,6 +21,8 @@ export class PaymentsService {
     private readonly configService: ConfigService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly paypalService: PayPalService,
+    private readonly invoicesService: InvoicesService,
+    private readonly emailService: EmailService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     this.stripe = new Stripe(secretKey || 'sk_test_placeholder', {
@@ -230,11 +234,35 @@ export class PaymentsService {
 
     const order = await this.ordersRepository.findOne({
       where: { id: orderId },
-      relations: ['items'],
+      relations: ['items', 'customer'],
     });
     if (order) {
       order.status = OrderStatus.ACTIVE;
       await this.ordersRepository.save(order);
+
+      // Email the customer their invoice right away — best-effort;
+      // a failure here shouldn't block the order from activating.
+      try {
+        const invoice = await this.invoicesService.findByOrder(String(order.id));
+        if (invoice) {
+          const invoicePdf = await this.invoicesService.generatePdf(
+            invoice.id,
+            String(order.customer.id),
+            'admin',
+          );
+          const itemNames = order.items?.map((i) => i.name).join(', ') || 'your order';
+          await this.emailService.sendOrderReceipt(
+            order.customer.email,
+            order.customer.fullName,
+            itemNames,
+            Number(order.totalAmount),
+            invoicePdf,
+            invoice.invoiceNumber,
+          );
+        }
+      } catch (err) {
+        // Logged inside emailService/invoicesService already.
+      }
     }
 
     return {
