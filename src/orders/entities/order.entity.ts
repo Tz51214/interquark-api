@@ -52,6 +52,11 @@ export class Order {
   @Column({ type: 'timestamp', nullable: true })
   reminderSentAt: Date | null;
 
+  // New — the discount code applied at checkout, if any. Kept even
+  // after redemption so the order/invoice record shows what was used.
+  @Column({ type: 'varchar', nullable: true })
+  discountCode: string | null;
+
   @OneToMany(() => Project, (project) => project.order)
   projects: Project[];
 

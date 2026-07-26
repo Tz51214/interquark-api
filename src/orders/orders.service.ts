@@ -12,6 +12,7 @@ import { InvoicesService } from '../invoices/invoices.service';
 import { InvoiceStatus } from '../invoices/entities/invoice.entity';
 import { CreditMemosService } from '../credit-memos/credit-memos.service';
 import { PaymentsService } from '../payments/payments.service';
+import { DiscountsService } from '../discounts/discounts.service';
 
 @Injectable()
 export class OrdersService {
@@ -24,14 +25,29 @@ export class OrdersService {
     private readonly invoicesService: InvoicesService,
     private readonly creditMemosService: CreditMemosService,
     private readonly paymentsService: PaymentsService,
+    private readonly discountsService: DiscountsService,
   ) {}
 
   async createOrder(userId: number, dto: CreateOrderDto) {
-    const totalAmount = dto.items.reduce((sum, item) => sum + Number(item.price), 0);
+    const subtotal = dto.items.reduce((sum, item) => sum + Number(item.price), 0);
+
+    let totalAmount = subtotal;
+    let appliedCode: string | null = null;
+    if (dto.discountCode) {
+      // Throws if invalid/expired/exhausted — surfaces as a real
+      // error to the checkout UI rather than silently ignoring it.
+      const result = await this.discountsService.validate({
+        code: dto.discountCode,
+        orderTotal: subtotal,
+      });
+      totalAmount = result.newTotal;
+      appliedCode = result.code;
+    }
 
     const order = this.ordersRepository.create({
       customer: { id: userId } as User,
       totalAmount,
+      discountCode: appliedCode,
       status: OrderStatus.PENDING,
       items: dto.items.map((item) =>
         this.orderItemsRepository.create({

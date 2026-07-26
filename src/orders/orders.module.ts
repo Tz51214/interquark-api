@@ -9,9 +9,10 @@ import { User } from '../users/entities/user.entity';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { CreditMemosModule } from '../credit-memos/credit-memos.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { DiscountsModule } from '../discounts/discounts.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Order, OrderItem, Project, User]), InvoicesModule, CreditMemosModule, PaymentsModule],
+  imports: [TypeOrmModule.forFeature([Order, OrderItem, Project, User]), InvoicesModule, CreditMemosModule, PaymentsModule, DiscountsModule],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [TypeOrmModule],
