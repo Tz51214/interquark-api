@@ -8,9 +8,10 @@ import { PayPalModule } from '../paypal/paypal.module';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { EmailModule } from '../email/email.module';
 import { DiscountsModule } from '../discounts/discounts.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Order]), SubscriptionsModule, PayPalModule, InvoicesModule, EmailModule, DiscountsModule],
+  imports: [TypeOrmModule.forFeature([Order]), SubscriptionsModule, PayPalModule, InvoicesModule, EmailModule, DiscountsModule, UsersModule],
   controllers: [PaymentsController],
   providers: [PaymentsService],
   exports: [PaymentsService],

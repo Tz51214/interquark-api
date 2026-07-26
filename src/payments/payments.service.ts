@@ -12,6 +12,7 @@ import { PayPalService } from '../paypal/paypal.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { EmailService } from '../email/email.service';
 import { DiscountsService } from '../discounts/discounts.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class PaymentsService {
@@ -25,6 +26,7 @@ export class PaymentsService {
     private readonly invoicesService: InvoicesService,
     private readonly emailService: EmailService,
     private readonly discountsService: DiscountsService,
+    private readonly usersService: UsersService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     this.stripe = new Stripe(secretKey || 'sk_test_placeholder', {
@@ -244,6 +246,12 @@ export class PaymentsService {
 
       if (order.discountCode) {
         await this.discountsService.redeem(order.discountCode);
+      }
+
+      try {
+        await this.usersService.grantReferralRewardIfEligible(order.customer.id);
+      } catch (err) {
+        // Logged inside usersService/emailService already.
       }
 
       // Email the customer their invoice right away — best-effort;
