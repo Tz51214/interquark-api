@@ -7,7 +7,12 @@ export class ContactService {
   constructor(private readonly emailService: EmailService) {}
 
   async create(dto: CreateContactDto) {
-    await this.emailService.sendContactNotification(dto.name, dto.email, dto.message);
+    await this.emailService.sendContactNotification(dto.name, dto.email, dto.message, {
+      company: dto.company,
+      budget: dto.budget,
+      timeline: dto.timeline,
+      projectType: dto.projectType,
+    });
     return { message: 'Thanks — we\'ll be in touch shortly.' };
   }
 }

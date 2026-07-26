@@ -213,12 +213,21 @@ export class EmailService {
     fromName: string,
     fromEmail: string,
     message: string,
+    qualifiers?: { company?: string; budget?: string; timeline?: string; projectType?: string },
   ) {
     const notifyTo = this.configService.get<string>('CONTACT_NOTIFY_EMAIL') || this.fromAddress;
+    const qualifierRows = qualifiers
+      ? [
+          qualifiers.company ? `<p><strong>Company:</strong> ${qualifiers.company}</p>` : '',
+          qualifiers.projectType ? `<p><strong>Project type:</strong> ${qualifiers.projectType}</p>` : '',
+          qualifiers.budget ? `<p><strong>Budget:</strong> ${qualifiers.budget}</p>` : '',
+          qualifiers.timeline ? `<p><strong>Timeline:</strong> ${qualifiers.timeline}</p>` : '',
+        ].join('')
+      : '';
     await this.send(
       notifyTo,
       `New contact form message from ${fromName}`,
-      `<p><strong>From:</strong> ${fromName} (${fromEmail})</p><p><strong>Message:</strong></p><p>${message}</p>`,
+      `<p><strong>From:</strong> ${fromName} (${fromEmail})</p>${qualifierRows}<p><strong>Message:</strong></p><p>${message}</p>`,
     );
   }
 
