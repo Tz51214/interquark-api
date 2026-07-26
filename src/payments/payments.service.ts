@@ -11,6 +11,7 @@ import { PaymentMethod } from '../ledger/entities/payment-record.entity';
 import { PayPalService } from '../paypal/paypal.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { EmailService } from '../email/email.service';
+import { DiscountsService } from '../discounts/discounts.service';
 
 @Injectable()
 export class PaymentsService {
@@ -23,6 +24,7 @@ export class PaymentsService {
     private readonly paypalService: PayPalService,
     private readonly invoicesService: InvoicesService,
     private readonly emailService: EmailService,
+    private readonly discountsService: DiscountsService,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     this.stripe = new Stripe(secretKey || 'sk_test_placeholder', {
@@ -239,6 +241,10 @@ export class PaymentsService {
     if (order) {
       order.status = OrderStatus.ACTIVE;
       await this.ordersRepository.save(order);
+
+      if (order.discountCode) {
+        await this.discountsService.redeem(order.discountCode);
+      }
 
       // Email the customer their invoice right away — best-effort;
       // a failure here shouldn't block the order from activating.
