@@ -243,6 +243,14 @@ export class EmailService {
     );
   }
 
+  async sendReferralReward(to: string, fullName: string, rewardCode: string) {
+    await this.send(
+      to,
+      "Someone you referred just made a purchase — here's your reward",
+      `<p>Hi ${fullName},</p><p>Great news — someone you referred to Interquark just completed their first purchase! As a thank you, here's a 15% off code for your next order or subscription:</p><p style="font-size: 20px; font-weight: bold;">${rewardCode}</p><p>— The Interquark Team</p>`,
+    );
+  }
+
   async sendPasswordReset(to: string, fullName: string, resetLink: string) {
     await this.send(
       to,

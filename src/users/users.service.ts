@@ -1,4 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { DiscountsService } from '../discounts/discounts.service';
+import { DiscountType } from '../discounts/entities/discount-code.entity';
+import { EmailService } from '../email/email.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Repository } from 'typeorm';
 import { User, UserRole, VerificationStatus } from './entities/user.entity';
@@ -12,6 +15,8 @@ const ONLINE_WINDOW_MINUTES = 15;
 export class UsersService {
   constructor(
     @InjectRepository(User) private readonly usersRepository: Repository<User>,
+    private readonly discountsService: DiscountsService,
+    private readonly emailService: EmailService,
   ) {}
 
   create(createUserDto: CreateUserDto) {
@@ -47,6 +52,33 @@ export class UsersService {
 
   findByReferralCode(code: string) {
     return this.usersRepository.findOne({ where: { referralCode: code } });
+  }
+
+  // Called after a referred user's first successful purchase (order
+  // or subscription payment). Grants the referrer a one-time reward
+  // discount code — best-effort, called from a try/catch by whoever
+  // invokes it so a failure here never blocks the actual payment.
+  async grantReferralRewardIfEligible(paidUserId: number) {
+    const paidUser = await this.usersRepository.findOne({ where: { id: paidUserId } });
+    if (!paidUser || !paidUser.referredByUserId || paidUser.referralRewarded) return;
+
+    const referrer = await this.usersRepository.findOne({
+      where: { id: paidUser.referredByUserId },
+    });
+    if (!referrer) return;
+
+    const rewardCode = `REF${Math.floor(100000 + Math.random() * 900000)}`;
+    await this.discountsService.create({
+      code: rewardCode,
+      type: DiscountType.PERCENTAGE,
+      value: 15,
+      maxUses: 1,
+    });
+
+    paidUser.referralRewarded = true;
+    await this.usersRepository.save(paidUser);
+
+    await this.emailService.sendReferralReward(referrer.email, referrer.fullName, rewardCode);
   }
 
   // Defaults — every toggle is on unless the user has explicitly
