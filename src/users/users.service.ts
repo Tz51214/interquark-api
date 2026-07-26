@@ -18,6 +18,37 @@ export class UsersService {
     return 'This action adds a new user';
   }
 
+  // Generates a short, shareable referral code the first time a user
+  // asks for one, then reuses the same code on every future call.
+  async getOrCreateReferralCode(userId: number) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found.');
+
+    if (user.referralCode) return user.referralCode;
+
+    const base = (user.fullName || 'USER')
+      .replace(/[^a-zA-Z]/g, '')
+      .toUpperCase()
+      .slice(0, 6) || 'USER';
+
+    // Retry with a random suffix on the rare chance of a collision.
+    for (let i = 0; i < 5; i++) {
+      const suffix = Math.floor(1000 + Math.random() * 9000);
+      const candidate = `${base}${suffix}`;
+      const exists = await this.usersRepository.findOne({ where: { referralCode: candidate } });
+      if (!exists) {
+        user.referralCode = candidate;
+        await this.usersRepository.save(user);
+        return candidate;
+      }
+    }
+    throw new Error('Could not generate a unique referral code.');
+  }
+
+  findByReferralCode(code: string) {
+    return this.usersRepository.findOne({ where: { referralCode: code } });
+  }
+
   // Defaults — every toggle is on unless the user has explicitly
   // turned it off. Lets the frontend render a full, sensible set of
   // switches even for users who've never touched this before.

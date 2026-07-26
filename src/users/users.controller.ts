@@ -19,6 +19,13 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('me/referral')
+  async getMyReferralCode(@Req() req: any) {
+    const code = await this.usersService.getOrCreateReferralCode(req.user.userId);
+    return { code };
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Patch('me/notifications')
   updateMyNotificationPreferences(@Req() req: any, @Body() body: Record<string, boolean>) {
     return this.usersService.updateNotificationPreferences(req.user.userId, body);
