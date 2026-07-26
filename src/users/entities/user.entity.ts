@@ -75,6 +75,23 @@ export class User {
   @Column({ type: 'timestamp', nullable: true })
   signupReminderSentAt: Date | null;
 
+  // New — every user gets a unique referral code, generated on first
+  // access (see UsersService.getOrCreateReferralCode). Sharing their
+  // referral link rewards them when someone they refer makes their
+  // first purchase.
+  @Column({ type: 'varchar', nullable: true, unique: true })
+  referralCode: string | null;
+
+  // New — set at registration if the person signed up via someone
+  // else's referral link. Null for organic signups.
+  @Column({ type: 'int', nullable: true })
+  referredByUserId: number | null;
+
+  // New — set once the referral reward has actually been granted
+  // (first purchase/subscription), so it only fires once per referral.
+  @Column({ default: false })
+  referralRewarded: boolean;
+
   @Column({ type: 'simple-json', nullable: true })
   notificationPreferences: {
     orderUpdates?: boolean;
