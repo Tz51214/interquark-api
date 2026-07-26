@@ -147,11 +147,13 @@ export class AuthService {
       select: ['id', 'fullName', 'email', 'password', 'phone', 'company', 'role', 'createdAt', 'updatedAt'],
     });
     if (!user) {
+      console.warn(`[failed-login] Unknown email attempted: ${loginDto.email}`);
       throw new UnauthorizedException('Invalid email or password.');
     }
 
     const passwordMatches = await bcrypt.compare(loginDto.password, user.password);
     if (!passwordMatches) {
+      console.warn(`[failed-login] Wrong password for: ${loginDto.email} (role: ${user.role})`);
       throw new UnauthorizedException('Invalid email or password.');
     }
 
