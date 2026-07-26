@@ -45,4 +45,8 @@ export class RegisterDto {
   @IsOptional()
   @IsEnum(SignupTier)
   tier?: SignupTier;
+
+  @IsOptional()
+  @IsString()
+  referralCode?: string;
 }

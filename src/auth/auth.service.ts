@@ -103,6 +103,17 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
     const isFreelancer = registerDto.role === SignupRole.FREELANCER;
 
+    // If a referral code was provided, look up the referrer — silently
+    // ignored if the code doesn't match anything, so a bad/expired
+    // link never blocks signup.
+    let referredByUserId: number | null = null;
+    if (registerDto.referralCode) {
+      const referrer = await this.usersRepository.findOne({
+        where: { referralCode: registerDto.referralCode.toUpperCase().trim() },
+      });
+      if (referrer) referredByUserId = referrer.id;
+    }
+
     const user = this.usersRepository.create({
       fullName: registerDto.fullName,
       email: registerDto.email,
@@ -111,6 +122,7 @@ export class AuthService {
       company: registerDto.company,
       role: isFreelancer ? UserRole.FREELANCER : UserRole.CLIENT,
       verificationStatus: isFreelancer ? VerificationStatus.PENDING : VerificationStatus.VERIFIED,
+      referredByUserId,
     });
 
     const savedUser = await this.usersRepository.save(user);
