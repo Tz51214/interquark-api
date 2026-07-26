@@ -11,6 +11,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { PaymentMethod, PaymentStatus, TransactionType } from '../ledger/entities/payment-record.entity';
 import { EmailService } from '../email/email.service';
 import { User } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class SubscriptionsService {
@@ -21,6 +22,7 @@ export class SubscriptionsService {
     private readonly usersRepository: Repository<User>,
     private readonly ledgerService: LedgerService,
     private readonly emailService: EmailService,
+    private readonly usersService: UsersService,
   ) {}
 
   create(createSubscriptionDto: CreateSubscriptionDto) {
@@ -161,6 +163,12 @@ export class SubscriptionsService {
     } catch (err) {
       // Logged inside emailService/ledgerService already — swallow
       // here so a receipt-email failure never breaks activation.
+    }
+
+    try {
+      await this.usersService.grantReferralRewardIfEligible(params.freelancerId);
+    } catch (err) {
+      // Logged inside usersService/emailService already.
     }
 
     return saved;
