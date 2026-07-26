@@ -17,6 +17,7 @@ import { ContactModule } from './contact/contact.module';
 import { SupportChatModule } from './support/support-chat.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { TasksModule } from './tasks/tasks.module';
+import { DiscountsModule } from './discounts/discounts.module';
 import { ProductsModule } from './products/products.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { LedgerModule } from './ledger/ledger.module';
@@ -37,6 +38,7 @@ import { APP_GUARD } from '@nestjs/core';
     ScheduleModule.forRoot(),
     RemindersModule,
     TasksModule,
+    DiscountsModule,
 
     TypeOrmModule.forRoot({
       type: 'postgres',
