@@ -28,7 +28,7 @@ export class OrdersService {
     private readonly discountsService: DiscountsService,
   ) {}
 
-  async createOrder(userId: number, dto: CreateOrderDto) {
+  async createOrder(userId: number, dto: CreateOrderDto, ipAddress: string | null = null) {
     const subtotal = dto.items.reduce((sum, item) => sum + Number(item.price), 0);
 
     let totalAmount = subtotal;
@@ -48,6 +48,7 @@ export class OrdersService {
       customer: { id: userId } as User,
       totalAmount,
       discountCode: appliedCode,
+      ipAddress,
       status: OrderStatus.PENDING,
       items: dto.items.map((item) =>
         this.orderItemsRepository.create({

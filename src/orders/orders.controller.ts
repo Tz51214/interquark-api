@@ -13,7 +13,14 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard)
   @Post()
   create(@Req() req: any, @Body() dto: CreateOrderDto) {
-    return this.ordersService.createOrder(req.user.userId, dto);
+    // Cloudflare/Render sit in front of the app as proxies, so the real
+    // client IP comes through this header rather than the raw socket.
+    const ipAddress =
+      (req.headers['cf-connecting-ip'] as string) ||
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.ip ||
+      null;
+    return this.ordersService.createOrder(req.user.userId, dto, ipAddress);
   }
 
   @UseGuards(JwtAuthGuard)

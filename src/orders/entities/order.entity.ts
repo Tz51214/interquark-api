@@ -57,6 +57,12 @@ export class Order {
   @Column({ type: 'varchar', nullable: true })
   discountCode: string | null;
 
+  // New — captured at order creation for the admin abandoned-cart
+  // report. Best-effort — some proxies/environments may not provide
+  // a real client IP, in which case this stays null.
+  @Column({ type: 'varchar', nullable: true })
+  ipAddress: string | null;
+
   @OneToMany(() => Project, (project) => project.order)
   projects: Project[];
 
