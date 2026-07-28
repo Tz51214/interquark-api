@@ -10,6 +10,7 @@ import { SubscriptionTier } from '../subscriptions/entities/subscription.entity'
 import { PaymentMethod } from '../ledger/entities/payment-record.entity';
 import { PayPalService } from '../paypal/paypal.service';
 import { InvoicesService } from '../invoices/invoices.service';
+import { InvoiceStatus } from '../invoices/entities/invoice.entity';
 import { EmailService } from '../email/email.service';
 import { DiscountsService } from '../discounts/discounts.service';
 import { UsersService } from '../users/users.service';
@@ -254,26 +255,36 @@ export class PaymentsService {
         // Logged inside usersService/emailService already.
       }
 
-      // Email the customer their invoice right away — best-effort;
+      // Create the invoice now — payment has genuinely succeeded at
+      // this point, so it's created (or reused, in case one already
+      // exists) as PAID, then emailed as a real receipt. Best-effort;
       // a failure here shouldn't block the order from activating.
       try {
-        const invoice = await this.invoicesService.findByOrder(String(order.id));
-        if (invoice) {
-          const invoicePdf = await this.invoicesService.generatePdf(
-            invoice.id,
-            String(order.customer.id),
-            'admin',
-          );
-          const itemNames = order.items?.map((i) => i.name).join(', ') || 'your order';
-          await this.emailService.sendOrderReceipt(
-            order.customer.email,
-            order.customer.fullName,
-            itemNames,
-            Number(order.totalAmount),
-            invoicePdf,
-            invoice.invoiceNumber,
-          );
+        let invoice = await this.invoicesService.findByOrder(String(order.id));
+        if (!invoice) {
+          invoice = await this.invoicesService.create({
+            customerId: String(order.customer.id),
+            orderId: String(order.id),
+            amount: Number(order.totalAmount),
+            status: InvoiceStatus.PAID,
+          });
+        } else if (invoice.status !== InvoiceStatus.PAID) {
+          await this.invoicesService.update(invoice.id, { status: InvoiceStatus.PAID });
         }
+        const invoicePdf = await this.invoicesService.generatePdf(
+          invoice.id,
+          String(order.customer.id),
+          'admin',
+        );
+        const itemNames = order.items?.map((i) => i.name).join(', ') || 'your order';
+        await this.emailService.sendOrderReceipt(
+          order.customer.email,
+          order.customer.fullName,
+          itemNames,
+          Number(order.totalAmount),
+          invoicePdf,
+          invoice.invoiceNumber,
+        );
       } catch (err) {
         // Logged inside emailService/invoicesService already.
       }
