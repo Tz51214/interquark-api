@@ -10,6 +10,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { OrdersModule } from './orders/orders.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { PortalAccessModule } from './portal-access/portal-access.module';
 import { ProjectsModule } from './projects/projects.module';
 import { PaymentsModule } from './payments/payments.module';
 import { EmailModule } from './email/email.module';
@@ -61,6 +62,7 @@ import { APP_GUARD } from '@nestjs/core';
     AuthModule,
     OrdersModule,
     SubscriptionsModule,
+    PortalAccessModule,
     ProjectsModule,
     PaymentsModule,
     EmailModule,
