@@ -104,6 +104,7 @@ export class OrdersService {
 
   async findAll() {
     return this.ordersRepository.find({
+      relations: ['customer'],
       order: { createdAt: 'DESC' },
     });
   }
