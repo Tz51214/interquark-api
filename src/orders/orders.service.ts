@@ -68,28 +68,12 @@ export class OrdersService {
     });
     await this.projectsRepository.save(project);
 
-    // New — every order gets an invoice immediately, starting as SENT.
-    // A webhook/payment-success handler flips it to PAID once payment
-    // actually completes.
-    await this.invoicesService.create({
-      customerId: String(userId),
-      orderId: String(savedOrder.id),
-      amount: totalAmount,
-      status: InvoiceStatus.SENT,
-    });
-
-    // New — send an order confirmation email. Fetched separately since
-    // savedOrder.customer only has { id: userId }, not the full record.
-    const customer = await this.usersRepository.findOne({ where: { id: userId } });
-    if (customer) {
-      const itemNames = dto.items.map((i) => i.name).join(', ');
-      await this.emailService.sendOrderConfirmation(
-        customer.email,
-        customer.fullName,
-        itemNames,
-        totalAmount,
-      );
-    }
+    // NOTE: invoice creation and the order-confirmation email used to
+    // fire right here, at order creation — before any payment happened.
+    // That was misleading (customers received what looked like a
+    // receipt for an order they hadn't actually paid for yet), so both
+    // were removed. The real invoice + receipt email now only fire
+    // after payment is genuinely captured (see payments.service.ts).
 
     return savedOrder;
   }
