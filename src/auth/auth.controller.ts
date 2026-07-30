@@ -23,18 +23,20 @@ import { UserRole } from '../users/entities/user.entity';
 
 const REFRESH_COOKIE = 'interquark_refresh';
 
+// The frontend (interquark.co.uk) and backend (interquark-api.onrender.com)
+// are genuinely different sites, not subdomains of one parent — so this
+// cookie must be sent cross-site. That requires SameSite=None, which browsers
+// only honor when Secure is also true (hence unconditional, not tied to
+// NODE_ENV — if that var were ever unset, Secure:false + SameSite:None would
+// cause every browser to silently reject the cookie). No domain attribute is
+// set — the cookie stays scoped to this exact API host, which is all that's
+// needed since only this API ever needs to read it back.
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  secure: true,
+  sameSite: 'none' as const,
   path: '/auth',
   maxAge: 7 * 24 * 60 * 60 * 1000,
-  // In production, scopes the cookie to the shared parent domain so
-  // both interquark.co.uk (frontend) and api.interquark.co.uk
-  // (backend) can read it. Set COOKIE_DOMAIN=.interquark.co.uk in
-  // your production .env — leave unset for local dev, where this
-  // must stay undefined or localhost cookies break.
-  ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
 };
 
 @Controller('auth')
