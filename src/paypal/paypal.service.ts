@@ -9,12 +9,16 @@ export class PayPalService {
   constructor(private readonly configService: ConfigService) {
     const clientId = this.configService.get<string>('PAYPAL_CLIENT_ID') || '';
     const clientSecret = this.configService.get<string>('PAYPAL_CLIENT_SECRET') || '';
-    const mode = this.configService.get<string>('PAYPAL_MODE') || 'sandbox';
+    const mode = (this.configService.get<string>('PAYPAL_MODE') || 'sandbox').toLowerCase();
+    // Accept "live" or "production" as meaning live mode — anything
+    // else (including unset) falls back to sandbox.
+    const isLive = mode === 'live' || mode === 'production';
 
-    const environment =
-      mode === 'live'
-        ? new paypal.core.LiveEnvironment(clientId, clientSecret)
-        : new paypal.core.SandboxEnvironment(clientId, clientSecret);
+    const environment = isLive
+      ? new paypal.core.LiveEnvironment(clientId, clientSecret)
+      : new paypal.core.SandboxEnvironment(clientId, clientSecret);
+
+    console.log(`[PayPal] Initialized in ${isLive ? 'LIVE' : 'SANDBOX'} mode (PAYPAL_MODE="${mode}")`);
 
     this.client = new paypal.core.PayPalHttpClient(environment);
   }
