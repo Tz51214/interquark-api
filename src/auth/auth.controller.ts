@@ -61,15 +61,23 @@ export class AuthController {
 
     res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
 
-    return { message, accessToken, user };
+    // Also returned directly in the body — the frontend stores this in
+    // localStorage and sends it back explicitly on /auth/refresh,
+    // since the cookie alone is unreliable across genuinely different
+    // domains once a browser blocks third-party cookies (independent
+    // of SameSite/Secure settings, which were already correct).
+    return { message, accessToken, refreshToken, user };
   }
 
   @Post('refresh')
   async refresh(
     @Req() req: Request,
+    @Body() body: { refreshToken?: string },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const token = req.cookies?.[REFRESH_COOKIE];
+    // Prefer the token sent explicitly in the body (localStorage) —
+    // fall back to the cookie for any client still relying on it.
+    const token = body?.refreshToken || req.cookies?.[REFRESH_COOKIE];
     if (!token) {
       throw new UnauthorizedException('No refresh token.');
     }
@@ -79,7 +87,7 @@ export class AuthController {
 
     res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
 
-    return { accessToken, user };
+    return { accessToken, refreshToken, user };
   }
 
   @Post('logout')
