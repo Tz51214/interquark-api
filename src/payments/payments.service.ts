@@ -278,9 +278,56 @@ export class PaymentsService {
   // status, redeems discounts/referrals, creates the invoice, and
   // sends the receipt. Used by both the normal return-flow capture and
   // the admin reconciliation path above, so behavior stays identical.
+  // Server-side GA4 purchase tracking — only needed here, for orders
+  // finalized through admin reconciliation. Normal checkout already
+  // fires this client-side via gtag in the browser; adding it there
+  // too would double-count real purchases. Best-effort: a tracking
+  // failure should never block the order from completing.
+  private async trackServerSidePurchase(order: Order) {
+    const measurementId = this.configService.get<string>('GA4_MEASUREMENT_ID');
+    const apiSecret = this.configService.get<string>('GA4_API_SECRET');
+    if (!measurementId || !apiSecret) return;
+
+    try {
+      await fetch(
+        `https://www.google-analytics.com/mp/collect?measurement_id=${measurementId}&api_secret=${apiSecret}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            // A random client_id is fine here — GA4 still records the
+            // revenue and event correctly; it just won't attribute to
+            // the original browsing session, which no longer exists
+            // for an order recovered this way.
+            client_id: `admin-reconcile-${order.id}-${Date.now()}`,
+            events: [
+              {
+                name: 'purchase',
+                params: {
+                  transaction_id: String(order.id),
+                  currency: 'GBP',
+                  value: Number(order.totalAmount),
+                  items: order.items?.map((i) => ({
+                    item_id: i.sku,
+                    item_name: i.name,
+                    item_variant: i.tier,
+                    price: Number(i.price),
+                    quantity: 1,
+                  })),
+                },
+              },
+            ],
+          }),
+        },
+      );
+    } catch (err) {
+      // Best-effort — never let an analytics failure block the order.
+    }
+  }
+
   private async finalizeSuccessfulOrder(order: Order, paypalResult: any) {
     order.status = OrderStatus.ACTIVE;
     await this.ordersRepository.save(order);
+    await this.trackServerSidePurchase(order);
 
     if (order.discountCode) {
       await this.discountsService.redeem(order.discountCode);
