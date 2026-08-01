@@ -225,6 +225,116 @@ export class PaymentsService {
 
   // New — PayPal order checkout, step 2: capture after the customer
   // approves on PayPal's site.
+  // Admin-only reconciliation — for cases where a customer's payment
+  // genuinely shows on PayPal but our order is still stuck at pending
+  // (the return flow failed to record it, e.g. a lost session). Checks
+  // PayPal's actual current status for the order and either captures
+  // it (if approved but not yet captured) or syncs our record to match
+  // (if PayPal already shows it completed) — never blindly re-captures
+  // an already-captured order, which PayPal would reject anyway.
+  async reconcileOrderWithPaypal(orderId: number) {
+    const order = await this.ordersRepository.findOne({
+      where: { id: orderId },
+      relations: ['items', 'customer'],
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!order.paypalOrderId) {
+      throw new BadRequestException(
+        'This order was never sent to PayPal — there is nothing to reconcile.',
+      );
+    }
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException('This order is not pending — nothing to reconcile.');
+    }
+
+    const paypalOrder = await this.paypalService.getOrder(order.paypalOrderId);
+
+    if (paypalOrder.status === 'COMPLETED') {
+      // PayPal already captured it, but our record never got updated —
+      // just sync, don't try to capture again (that would fail).
+      return this.finalizeSuccessfulOrder(order, paypalOrder);
+    }
+
+    if (paypalOrder.status === 'APPROVED') {
+      // Customer approved on PayPal's side but our capture call never
+      // fired (or failed) — actually capture it now.
+      const captureResult = await this.paypalService.captureOrder(order.paypalOrderId);
+      if (captureResult.status !== 'COMPLETED') {
+        throw new BadRequestException(
+          `PayPal capture did not complete (status: ${captureResult.status}).`,
+        );
+      }
+      return this.finalizeSuccessfulOrder(order, captureResult);
+    }
+
+    // CREATED (or anything else) — the customer never actually
+    // approved payment on PayPal's side. Nothing to capture.
+    throw new BadRequestException(
+      `PayPal shows this order as "${paypalOrder.status}" — the customer never completed approval, so there is no payment to capture.`,
+    );
+  }
+
+  // Shared finishing logic for a genuinely captured order — sets
+  // status, redeems discounts/referrals, creates the invoice, and
+  // sends the receipt. Used by both the normal return-flow capture and
+  // the admin reconciliation path above, so behavior stays identical.
+  private async finalizeSuccessfulOrder(order: Order, paypalResult: any) {
+    order.status = OrderStatus.ACTIVE;
+    await this.ordersRepository.save(order);
+
+    if (order.discountCode) {
+      await this.discountsService.redeem(order.discountCode);
+    }
+
+    try {
+      await this.usersService.grantReferralRewardIfEligible(order.customer.id);
+    } catch (err) {
+      // Logged inside usersService/emailService already.
+    }
+
+    try {
+      let invoice = await this.invoicesService.findByOrder(String(order.id));
+      if (!invoice) {
+        invoice = await this.invoicesService.create({
+          customerId: String(order.customer.id),
+          orderId: String(order.id),
+          amount: Number(order.totalAmount),
+          status: InvoiceStatus.PAID,
+        });
+      } else if (invoice.status !== InvoiceStatus.PAID) {
+        await this.invoicesService.update(invoice.id, { status: InvoiceStatus.PAID });
+      }
+      const invoicePdf = await this.invoicesService.generatePdf(
+        invoice.id,
+        String(order.customer.id),
+        'admin',
+      );
+      const itemNames = order.items?.map((i) => i.name).join(', ') || 'your order';
+      await this.emailService.sendOrderReceipt(
+        order.customer.email,
+        order.customer.fullName,
+        itemNames,
+        Number(order.totalAmount),
+        invoicePdf,
+        invoice.invoiceNumber,
+      );
+    } catch (err) {
+      // Logged inside emailService/invoicesService already.
+    }
+
+    return {
+      received: true,
+      orderId: order.id,
+      totalAmount: Number(order.totalAmount),
+      items: order.items?.map((i) => ({
+        name: i.name,
+        sku: i.sku,
+        tier: i.tier,
+        price: Number(i.price),
+      })),
+    };
+  }
+
   async captureOrderPaypalOrder(paypalOrderId: string) {
     const result = await this.paypalService.captureOrder(paypalOrderId);
 

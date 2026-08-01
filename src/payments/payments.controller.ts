@@ -1,6 +1,10 @@
 import { Body, Controller, Headers, Post, RawBody, Req, UseGuards } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
+import { Param, ParseIntPipe } from '@nestjs/common';
 import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
 import { CreateSubscriptionCheckoutDto } from './dto/create-subscription-checkout.dto';
 import { CreatePaypalOrderDto } from './dto/create-paypal-order.dto';
@@ -61,5 +65,16 @@ export class PaymentsController {
   @Post('paypal/order/capture')
   captureOrderPaypalOrder(@Body() dto: CapturePaypalOrderDto) {
     return this.paymentsService.captureOrderPaypalOrder(dto.orderId);
+  }
+
+  // New — admin-only: reconciles a pending order against PayPal's
+  // actual current status. For cases where payment genuinely shows on
+  // PayPal but the order is stuck pending because the customer's
+  // browser never completed the normal capture step.
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Post('paypal/order/:orderId/reconcile')
+  reconcileOrderWithPaypal(@Param('orderId', ParseIntPipe) orderId: number) {
+    return this.paymentsService.reconcileOrderWithPaypal(orderId);
   }
 }
